@@ -4,3 +4,4 @@
 - Handle OOM when wal line won't fit in memory if needed. Need to parse wal in chunks?
 - Handle corrupt wal file if needed.
 - Can WAL code be separated from cache code?
+- See if every sec flush strategy can be introduced using go channels. But this would consume memory for buffering and can lead to OOM.
