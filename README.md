@@ -1,7 +1,7 @@
 ## TCP based LRU cache server - Leru
 Stores N (max: 1000000) least recently used elements.
 
-Uses a WAL for durability with configurable flush strategy - always for each command, or every 1 second.
+Uses a WAL for durability with configurable flush strategy - SYNC for each command, or ASYNC.
 
 ### Configuration:
 Configuration is supplied using env variables
