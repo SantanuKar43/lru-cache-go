@@ -18,17 +18,17 @@ func GetConfig() *Config {
 	config := new(Config)
 	var err error
 	config.Port, err = strconv.Atoi(getEnvVar("LERU_PORT", "9090"))
-	if err != nil {
+	if err != nil || config.Port < 0 {
 		log.Fatal("Error occurred while starting server, invalid port", err)
 	}
 
 	config.Capacity, err = strconv.Atoi(getEnvVar("LERU_CAPACITY", "3"))
-	if err != nil {
+	if err != nil || config.Capacity > 1000000 || config.Capacity < 1 {
 		log.Fatal("Error occurred while starting server, invalid N", err)
 	}
 
-	config.WalSize, err = strconv.Atoi(getEnvVar("LERU_WAL_SIZE", "100")) // 100 b
-	if err != nil {
+	config.WalSize, err = strconv.Atoi(getEnvVar("LERU_WAL_SIZE", "100")) // 100 bytes
+	if err != nil || config.WalSize < 1 {
 		log.Fatal("Error occurred while starting server, invalid WAL size", err)
 	}
 
