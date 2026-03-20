@@ -1,4 +1,4 @@
-- Take max key length and value length as configs.
+- Take max key length and max value length as configs.
 - Use a buffer to calculate file size for compaction. When size of (file + 3 line buffer) is greater than limit, run compaction. Line buffer can be calculated from max key length and value length.
 - Keep a default max key, val length.
 - Handle OOM when wal line won't fit in memory if needed. Need to parse wal in chunks?
