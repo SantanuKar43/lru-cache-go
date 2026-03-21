@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
-	"path/filepath"
+	"time"
 )
 
 type FlushStrategy string
@@ -21,20 +23,23 @@ const (
 
 type Cache struct {
 	mutex sync.Mutex
-	cache *LRUCache
+	lruCache *LRUCache
 	walSizeLimit int64
 	flushStrategy FlushStrategy
 }
 
 var walMutex sync.Mutex
 
-const WAL_FILE = "leru/data/wal.log"
-const WAL_FILE_NEW = "leru/data/wal.log.new"
-const WAL_FILE_OLD = "leru/data/wal.log.old"
+const WAL_FILE = "leru-data/data/wal.log"
+const WAL_FILE_NEW = "leru-data/data/wal.log.new"
+const WAL_FILE_OLD = "leru-data/data/wal.log.old"
+const WAL_PUT_LINE = "PUT %s %s %d %d\n"
+const WAL_GET_LINE = "GET %s\n"
+const WAL_DEL_LINE = "DEL %s\n"
 
 func Init(capacity int, walSizeLimit int64, flushStrategy FlushStrategy) *Cache {
 	c := &Cache {
-		cache: &LRUCache{
+		lruCache: &LRUCache{
 			hashMap: make(map[string]*list.Element),
 			linkedList: list.New(),
 			capacity: capacity,
@@ -49,25 +54,38 @@ func Init(capacity int, walSizeLimit int64, flushStrategy FlushStrategy) *Cache 
 func (c *Cache) Get(key string) (string, error) {
 	defer c.mutex.Unlock()
 	c.mutex.Lock()
-	val := c.cache.Get(key)
+	val := c.lruCache.Get(key)
 	if c.flushStrategy == SYNC {
-		err := appendToWal(fmt.Sprintf("GET %s\n", key), c.walSizeLimit, c.cache)
+		err := appendToWal(fmt.Sprintf(WAL_GET_LINE, key), c.walSizeLimit, c.lruCache)
 		return val, err
 	} else {
-		go appendToWal(fmt.Sprintf("GET %s\n", key), c.walSizeLimit, c.cache)
+		go appendToWal(fmt.Sprintf(WAL_GET_LINE, key), c.walSizeLimit, c.lruCache)
 	}
 	return val, nil
 }
 
-func (c *Cache) Put(key string, val string) error {
+func (c *Cache) Put(key string, val string, ttl int64) error {
 	defer c.mutex.Unlock()
 	c.mutex.Lock()
-	c.cache.Put(key, val)
+	node := c.lruCache.Put(key, val, ttl)
 	if c.flushStrategy == SYNC {
-		err := appendToWal(fmt.Sprintf("PUT %s %s\n", key, val), c.walSizeLimit, c.cache)
+		err := appendToWal(fmt.Sprintf(WAL_PUT_LINE, key, val, node.CreatedAt, ttl), c.walSizeLimit, c.lruCache)
 		return err
 	} else {
-		go appendToWal(fmt.Sprintf("PUT %s %s\n", key, val), c.walSizeLimit, c.cache)
+		go appendToWal(fmt.Sprintf(WAL_PUT_LINE, key, val, node.CreatedAt, ttl), c.walSizeLimit, c.lruCache)
+	}
+	return nil
+}
+
+func (c *Cache) Delete(key string) error {
+	defer c.mutex.Unlock()
+	c.mutex.Lock()
+	c.lruCache.Delete(key)
+	if c.flushStrategy == SYNC {
+		err := appendToWal(fmt.Sprintf(WAL_DEL_LINE, key), c.walSizeLimit, c.lruCache)
+		return err
+	} else {
+		go appendToWal(fmt.Sprintf(WAL_DEL_LINE, key), c.walSizeLimit, c.lruCache)
 	}
 	return nil
 }
@@ -109,10 +127,8 @@ func rebuildCacheFromWAL(cache *Cache) {
 		if err != nil {
 			log.Fatalf("Error opening file: %s", err)
 		}
-		// Create a new scanner for the file
 		scanner := bufio.NewScanner(file)
 
-		// Iterate over the scanner's lines
 		for scanner.Scan() {
 			// Get the current line as a string
 			// TODO need to make sure line will fit in memory. 
@@ -120,15 +136,13 @@ func rebuildCacheFromWAL(cache *Cache) {
 			command := scanner.Text() 
 			execute(command, cache)
 		}
-
-		// Check for errors during scanning
 		if err := scanner.Err(); err != nil {
 			log.Fatalf("Error scanning file: %s", err)
 		}
 	} else {
 		createWALFile()
 	}
-	go compactWAL(cache.walSizeLimit, cache.cache)
+	go compactWAL(cache.walSizeLimit, cache.lruCache)
 }
 
 func createWALFile() {
@@ -170,7 +184,11 @@ func writeCacheToNewWAL(lruCache *LRUCache) {
 
 	elem := lruCache.linkedList.Back()
 	for elem != nil {
-		fmt.Fprintf(file, "PUT %s %s\n", elem.Value.(Node).Key, elem.Value.(Node).Val)
+		node := elem.Value.(Node)
+		if node.Expired() {
+			continue
+		}
+		fmt.Fprintf(file, WAL_PUT_LINE, node.Key, node.Val, node.CreatedAt, node.Ttl)
 		elem = elem.Prev()
 	}
 	err = file.Sync()
@@ -180,13 +198,26 @@ func writeCacheToNewWAL(lruCache *LRUCache) {
 }
 
 func execute(input string, cache *Cache) {
-	command := strings.Fields(input)
-	switch (command[0]) {
+	log := strings.Fields(input)
+	switch (log[0]) {
 	case "PUT":
-		cache.cache.Put(command[1], command[2])
+		createdAt, _ := strconv.ParseInt(log[3], 10, 64) //ignoring error
+		ttl, _ := strconv.ParseInt(log[4], 10, 64) //ignoring error
+		timeElapsed := time.Now().Unix() - createdAt
+		if ttl != 0 {
+			if timeElapsed >= ttl {
+				return
+			} else {
+				ttl -= timeElapsed
+			}
+		}
+		cache.lruCache.Put(log[1], log[2], ttl)
 	case "GET":
-		cache.cache.Get(command[1])
+		cache.lruCache.Get(log[1])
+	case "DEL":
+		cache.lruCache.Delete(log[1])
 	}
+
 }
 
 func fileExists(filename string) bool {

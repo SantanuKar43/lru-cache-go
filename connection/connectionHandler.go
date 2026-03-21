@@ -1,10 +1,11 @@
 package connection
 
 import (
-	"net"
 	"bufio"
-	"strings"
 	"log"
+	"net"
+	"strconv"
+	"strings"
 	"github.com/SantanuKar43/lru-cache-go/cache"
 )
 
@@ -37,16 +38,36 @@ func HandleConnection(conn net.Conn, cache *cache.Cache) {
 			}
 			conn.Write([]byte(val + "\n"))
 		case "PUT":
-			// PUT <key> <value>
+			// PUT <key> <value> <ttl in seconds:optional>
 			if len(command) < 3 {
 				conn.Write([]byte("INVALID_PUT_COMMAND\n"))
 				continue
 			}
 			key := command[1]
 			value := command[2]
-			err := cache.Put(key, value)
+			ttl := int64(0)
+			if len(command) > 3 {
+				ttl,_ = strconv.ParseInt(command[3], 10, 64) // ignoring error
+				if ttl < 0 {
+					ttl = 0
+				}
+			}
+			err := cache.Put(key, value, ttl)
 			if err != nil {
 				conn.Write([]byte("PUT_ERROR:" + err.Error() + "\n"))
+				return
+			}
+			conn.Write([]byte("SUCCESS\n"))
+		case "DEL":
+			// DEL <key>
+			if len(command) < 2 {
+				conn.Write([]byte("INVALID_DEL_COMMAND\n"))
+				continue
+			}
+			key := command[1]
+			err := cache.Delete(key)
+			if err != nil {
+				conn.Write([]byte("DEL_ERROR:" + err.Error() + "\n"))
 				return
 			}
 			conn.Write([]byte("SUCCESS\n"))
