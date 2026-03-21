@@ -1,59 +1,126 @@
-## LRU cache TCP server - Leru
-Stores N (max: 1000000) least recently used elements.
+# Leru - LRU Cache TCP Server
 
-Supports TTLs.
+A high-performance TCP server implementing a Least Recently Used (LRU) cache with Write-Ahead Logging (WAL) for durability. Supports up to 1,000,000 cache entries with configurable TTL and flush strategies.
 
-Uses a WAL for durability with configurable flush strategy - SYNC for each command, or ASYNC.
+## Features
 
-### Supported commands:
-#### Write: Put in cache
-`PUT {KEY: str} {VALUE: str}`
+- **LRU Cache**: Stores up to N elements (max: 1,000,000) using Least Recently Used eviction policy
+- **TTL Support**: Set expiration times for cache entries
+- **Write-Ahead Logging (WAL)**: Ensures data durability with configurable flush strategies
+- **TCP Server**: High-performance TCP interface for cache operations
+- **Flexible Configuration**: Environment variable-based configuration
+- **Docker Support**: Containerized deployment
+- **Kubernetes Ready**: Includes deployment manifests
 
-#### Read: Get from cache
-`GET {KEY: str}`
+## Supported Commands
 
-#### Write: Put in cache with TTL
-`PUT {KEY: str} {VALUE: str} {TTL IN SECONDS: int, optional}` 
-
-#### DELETE: Delete from cache
-`DEL {KEY: str}`
-
-### Configuration:
-Configuration is supplied using env variables
+### PUT - Write to Cache
 ```
-LERU_PORT_NUMBER: port number to listen for connections
-LERU_CAPACITY: number of elements to store
-LERU_WAL_SIZE: size limit of WAL in bytes
-LERU_FLUSH_STRATEGY: SYNC / ASYNC
+PUT {KEY: str} {VALUE: str}
+PUT {KEY: str} {VALUE: str} {TTL_SECONDS: int}
 ```
-### Build and run:
-Refer Makefile
+Stores a key-value pair in the cache. Optionally specify a TTL (Time To Live) in seconds.
 
-## WAL usage
-WAL is a simple log file containing commands received by the server.
+### GET - Read from Cache
+```
+GET {KEY: str}
+```
+Retrieves the value associated with a key from the cache.
 
-When a command is processed, it is appended to the log file with the configured flush strategy.
+### DEL - Delete from Cache
+```
+DEL {KEY: str}
+```
+Removes a key-value pair from the cache.
 
-Flush strategy "SYNC" - This is used for high reliability. The log line is appended in sync. Response is returned after fsync call returns.
+## Configuration
 
-Flush strategy "ASYNC" - This is used for high performance. The log line is appended in async.
+Configure the server using environment variables:
 
-### Compaction
-When log file size limit is reached, the cache is examined and the log file is replaced with PUT commands, written for each element in cache preserving the order in memory.
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `LERU_PORT_NUMBER` | Port number to listen for connections | `9090` |
+| `LERU_CAPACITY` | Maximum number of cache elements | `10000` |
+| `LERU_WAL_SIZE` | Maximum WAL file size in bytes | `1000000` |
+| `LERU_FLUSH_STRATEGY` | Flush strategy: `SYNC` or `ASYNC` | `ASYNC` |
 
-#### Steps:
-1. WAL log file name: `wal.log`
-2. When size limit reached, a `wal.log.new` file is created with new logs. 
-3. `wal.log` is renamed to `wal.log.old`
-4. `wal.log.new` is renamed to `wal.log`
-5. `wal.log.old` is removed.
+### Flush Strategies
 
-On restart,
-1. If `wal.log` file is present:
-   - If `wal.log.new` file is present:
-     - `wal.log.new` is removed.
-2. else if `wal.log.new` is present
-   - `wal.log.new`is renamed to `wal.log`.
-3. If `wal.log.old` file is present, it is removed.
-4. `wal.log` file is referenced to rebuild the cache. If `wal.log` is not present, an empty `wal.log` is created.
-5. `wal.log` is compacted if needed.
+- **SYNC**: High reliability mode. Each command is written to disk and fsync is called before responding to the client. Use for critical data.
+- **ASYNC**: High performance mode. Commands are written to disk asynchronously. Better throughput but potential data loss on sudden failure.
+
+## Build and Run
+
+### Local Build
+```bash
+make build
+./bin/leru
+```
+
+### Docker
+```bash
+make docker-run
+```
+
+### Kubernetes
+```bash
+# Deploy
+make k8s-deploy-local
+
+# Forward port to localhost
+make k8s-port-forward
+
+# Delete deployment
+make k8s-delete-local
+```
+
+Refer to the [Makefile](./Makefile) for all available commands.
+
+## Write-Ahead Logging (WAL)
+
+The WAL is a command log file that records all operations for durability and recovery.
+
+### WAL Behavior
+
+- Each command is appended to `wal.log` with the configured flush strategy
+- **SYNC mode**: fsync is called after each write, ensuring durability before responding to client
+- **ASYNC mode**: Writes are buffered and flushed asynchronously for better performance
+
+### Log Compaction
+
+When the WAL file reaches the configured size limit, compaction occurs:
+
+1. A new log file `wal.log.new` is created with all PUT commands for current cache entries
+2. The order of entries is preserved to maintain LRU semantics
+3. Old log file is renamed to `wal.log.old`
+4. New log file becomes active (`wal.log`)
+5. Old log file is deleted
+
+### Recovery Process
+
+On server restart, the WAL recovery proceeds as follows:
+
+1. If both `wal.log` and `wal.log.new` exist:
+   - `wal.log.new` is removed (incomplete compaction)
+2. Else if only `wal.log.new` exists:
+   - `wal.log.new` is renamed to `wal.log` (compaction completed)
+3. If `wal.log.old` exists:
+   - It is removed
+4. The cache is rebuilt by replaying commands from `wal.log`
+5. If `wal.log` doesn't exist, an empty one is created
+6. The log is compacted if needed
+
+## Architecture
+
+The application is organized into the following modules:
+
+- **cache**: Core LRU cache implementation with WAL support
+- **config**: Configuration management (environment variables)
+- **connection**: TCP connection handling and command processing
+- **main**: Server initialization and connection acceptance
+
+## Requirements
+
+- Go 1.16 or higher
+- Docker (for containerized deployment)
+- kubectl (for Kubernetes deployment)
