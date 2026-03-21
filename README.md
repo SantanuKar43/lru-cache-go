@@ -21,7 +21,7 @@ Uses a WAL for durability with configurable flush strategy - SYNC for each comma
 ### Configuration:
 Configuration is supplied using env variables
 ```
-LERU_PORT: port number to listen for connections
+LERU_PORT_NUMBER: port number to listen for connections
 LERU_CAPACITY: number of elements to store
 LERU_WAL_SIZE: size limit of WAL in bytes
 LERU_FLUSH_STRATEGY: SYNC / ASYNC
