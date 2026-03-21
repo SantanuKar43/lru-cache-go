@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leru
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leru
+  template:
+    metadata:
+      labels:
+        app: leru
+    spec:
+      containers:
+        - name: leru
+          image: leru:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: leru-storage
+              mountPath: /data
+          livenessProbe:
+            tcpSocket:
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "128Mi"
+      volumes:
+        - name: leru-storage
+          persistentVolumeClaim:
+            claimName: leru-pvc
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: leru-pvc
+spec:
+  storageClassName: hostpath
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

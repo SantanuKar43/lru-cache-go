@@ -17,7 +17,7 @@ type Config struct {
 func GetConfig() *Config {
 	config := new(Config)
 	var err error
-	config.Port, err = strconv.Atoi(getEnvVar("LERU_PORT", "9090"))
+	config.Port, err = strconv.Atoi(getEnvVar("LERU_PORT_NUMBER", "9090"))
 	if err != nil || config.Port < 0 {
 		log.Fatal("Error occurred while starting server, invalid port", err)
 	}
