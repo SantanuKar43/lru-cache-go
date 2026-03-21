@@ -5,4 +5,7 @@
 - Handle corrupt wal file if needed.
 - Can WAL code be separated from cache code?
 - See if every sec flush strategy can be introduced using go channels. But this would consume memory for buffering and can lead to OOM.
-- Add support for ttls and delete
+- Add support for ttls and delete [**Done**]
+- refactor and simplify cache code
+- dockerize [**Done**]
+- support for cluster creation and replication?

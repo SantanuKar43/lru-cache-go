@@ -1,7 +1,22 @@
-## TCP based LRU cache server - Leru
+## LRU cache TCP server - Leru
 Stores N (max: 1000000) least recently used elements.
 
+Supports TTLs.
+
 Uses a WAL for durability with configurable flush strategy - SYNC for each command, or ASYNC.
+
+### Supported commands:
+#### Write: Put in cache
+`PUT {KEY: str} {VALUE: str}`
+
+#### Read: Get from cache
+`GET {KEY: str}`
+
+#### Write: Put in cache with TTL
+`PUT {KEY: str} {VALUE: str} {TTL IN SECONDS: int, optional}` 
+
+#### DELETE: Delete from cache
+`DEL {KEY: str}`
 
 ### Configuration:
 Configuration is supplied using env variables
@@ -11,17 +26,13 @@ LERU_CAPACITY: number of elements to store
 LERU_WAL_SIZE: size limit of WAL in bytes
 LERU_FLUSH_STRATEGY: SYNC / ASYNC
 ```
-### Supported commands:
-#### Write: Put in cache
-`PUT {KEY: str} {VALUE: str}`
-
-#### Read: Get from cache
-`GET {KEY: str}`
+### Build and run:
+Refer Makefile
 
 ## WAL usage
 WAL is a simple log file containing commands received by the server.
 
-When a command is received, it is appended to the log file with the configured flush strategy.
+When a command is processed, it is appended to the log file with the configured flush strategy.
 
 Flush strategy "SYNC" - This is used for high reliability. The log line is appended in sync. Response is returned after fsync call returns.
 
