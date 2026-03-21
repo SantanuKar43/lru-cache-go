@@ -11,7 +11,7 @@ import (
 
 func main() {
 	config := config.GetConfig()
-	cache := cache.Init(config.Capacity, int64(config.WalSize), config.FlushStrategy)
+	cache := cache.Init(config.Capacity, config.WalSize, config.FlushStrategy)
 
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 type Config struct {
 	Port int
 	Capacity int
-	WalSize int
+	WalSize int64
 	FlushStrategy cache.FlushStrategy
 }
 
@@ -27,7 +27,7 @@ func GetConfig() *Config {
 		log.Fatal("Error occurred while starting server, invalid N", err)
 	}
 
-	config.WalSize, err = strconv.Atoi(getEnvVar("LERU_WAL_SIZE", "100")) // 100 bytes
+	config.WalSize, err = strconv.ParseInt(getEnvVar("LERU_WAL_SIZE", "100"), 10, 64) // 100 bytes
 	if err != nil || config.WalSize < 1 {
 		log.Fatal("Error occurred while starting server, invalid WAL size", err)
 	}
