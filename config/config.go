@@ -32,7 +32,7 @@ func GetConfig() *Config {
 		log.Fatal("Error occurred while starting server, invalid WAL size", err)
 	}
 
-	config.FlushStrategy = cache.FlushStrategy(getEnvVar("LERU_FLUSH_STRATEGY", "ALWAYS"))
+	config.FlushStrategy = cache.FlushStrategy(getEnvVar("LERU_FLUSH_STRATEGY", "SYNC"))
 	if config.FlushStrategy == "" {
 		log.Fatal("Invalid flush strategy")
 	}
