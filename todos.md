@@ -1,11 +1,8 @@
-- Take max key length and max value length as configs.
-- Use a buffer to calculate file size for compaction. When size of (file + 3 line buffer) is greater than limit, run compaction. Line buffer can be calculated from max key length and value length.
-- Keep a default max key, val length.
 - Handle OOM when wal line won't fit in memory if needed. Need to parse wal in chunks?
 - Handle corrupt wal file if needed.
 - Can WAL code be separated from cache code?
-- See if every sec flush strategy can be introduced using go channels. But this would consume memory for buffering and can lead to OOM.
+- See if every sec flush strategy can be introduced using go channels. But this would consume memory for buffering and can lead to OOM. [**Done**] - This is not needed and adds unnecessary memory overhead. Async is good enough.
 - Add support for ttls and delete [**Done**]
-- refactor and simplify cache code
+- refactor and simplify cache code.
 - dockerize [**Done**]
 - support for cluster creation and replication?
