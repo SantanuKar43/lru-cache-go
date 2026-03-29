@@ -3,6 +3,6 @@
 - Can WAL code be separated from cache code?
 - See if every sec flush strategy can be introduced using go channels. But this would consume memory for buffering and can lead to OOM. [**Done**] - This is not needed and adds unnecessary memory overhead. Async is good enough.
 - Add support for ttls and delete [**Done**]
-- refactor and simplify cache code.
+- refactor and simplify cache code. [**Done**]
 - dockerize [**Done**]
 - support for cluster creation and replication?

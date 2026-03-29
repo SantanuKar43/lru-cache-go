@@ -24,14 +24,14 @@ var walMutex sync.Mutex
 func AppendToWal(command string, c *Cache) error {
 	switch (c.flushStrategy) {
 	case SYNC:
-		return appendSync(command, c.walSizeLimit, c.lruCache)
+		return appendSync(command, c.walSizeLimit, c)
 	case ASYNC:
-		go appendSync(command, c.walSizeLimit, c.lruCache)
+		go appendSync(command, c.walSizeLimit, c)
 	}
 	return nil
 }
 
-func appendSync(command string, walSizeLimit int64, lruCache *LRUCache) error {
+func appendSync(command string, walSizeLimit int64, cache *Cache) error {
 	walMutex.Lock()
 	defer walMutex.Unlock()
 	file, err := os.OpenFile(WAL_FILE, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -43,7 +43,7 @@ func appendSync(command string, walSizeLimit int64, lruCache *LRUCache) error {
 		return err
 	}
 	file.Sync()
-	go compactWAL(walSizeLimit, lruCache)
+	go compactWAL(walSizeLimit, cache)
 	return nil
 }
 
@@ -83,7 +83,7 @@ func RebuildCacheFromWAL(cache *Cache) {
 	} else {
 		createWALFile()
 	}
-	go compactWAL(cache.walSizeLimit, cache.lruCache)
+	go compactWAL(cache.walSizeLimit, cache)
 }
 
 func createWALFile() {
@@ -99,7 +99,7 @@ func createWALFile() {
 	fmt.Printf("Created file: %s\n", WAL_FILE)
 }
 
-func compactWAL(walSizeLimit int64, lruCache *LRUCache) {
+func compactWAL(walSizeLimit int64, cache *Cache) {
 	walMutex.Lock()
 	defer walMutex.Unlock()
 	fileInfo, err := os.Stat(WAL_FILE)
@@ -108,29 +108,32 @@ func compactWAL(walSizeLimit int64, lruCache *LRUCache) {
 		return
 	}
 	if fileInfo.Size() > walSizeLimit {
-		writeCacheToNewWAL(lruCache)
+		writeCacheToNewWAL(cache)
 		os.Rename(WAL_FILE, WAL_FILE_OLD)
 		os.Rename(WAL_FILE_NEW, WAL_FILE)
 		os.Remove(WAL_FILE_OLD)
 	}
 }
 
-func writeCacheToNewWAL(lruCache *LRUCache) {
+func writeCacheToNewWAL(cache *Cache) {
 	file, err := os.Create(WAL_FILE_NEW)
 	if err != nil {
 		fmt.Println("Error creating file:", err)
 		return
 	}
 	defer file.Close()
-
-	elem := lruCache.linkedList.Back()
+	if cache.flushStrategy == ASYNC {
+		cache.mutex.Lock()
+		defer cache.mutex.Unlock()
+	}
+	elem := cache.lruCache.linkedList.Back()
 	for elem != nil {
-		node := elem.Value.(Node)
-		if node.Expired() {
-			continue
+		node := elem.Value.(*Node)
+		prev := elem.Prev()
+		if !node.Expired() {
+			fmt.Fprintf(file, WAL_PUT_LINE, node.Key, node.Val, node.CreatedAt, node.Ttl)
 		}
-		fmt.Fprintf(file, WAL_PUT_LINE, node.Key, node.Val, node.CreatedAt, node.Ttl)
-		elem = elem.Prev()
+		elem = prev
 	}
 	err = file.Sync()
 	if err != nil {

@@ -13,7 +13,7 @@ type Node struct {
 }
 
 func (node *Node) Expired() bool {
-	return node.Ttl != 0 && ((node.CreatedAt + node.Ttl) > time.Now().Unix())
+	return node.Ttl != 0 && ((node.CreatedAt + node.Ttl) <= time.Now().Unix())
 }
 
 type LRUCache struct {
@@ -27,27 +27,31 @@ func (c *LRUCache) Get(key string) string {
 	if !exists {
 		return ""
 	}
-	node := elem.Value.(Node)
+	node := elem.Value.(*Node)
 	if node.Expired() {
 		c.Delete(key)
 		return ""
 	}
 	c.linkedList.MoveToFront(elem)
-	return elem.Value.(Node).Val
+	return elem.Value.(*Node).Val
 }
 
-func (c *LRUCache) Put(key string, val string, ttl int64) Node {
+func (c *LRUCache) Put(key string, val string, ttl int64) *Node {
 	elem, exists := c.hashMap[key]
 	if exists {
+		node := elem.Value.(*Node)
+		node.Val = val
+		node.CreatedAt = time.Now().Unix()
+		node.Ttl = ttl
 		c.linkedList.MoveToFront(elem)
-		return elem.Value.(Node)
+		return node
 	}
-	elem = c.linkedList.PushFront(Node{key, val, time.Now().Unix(), ttl})
+	elem = c.linkedList.PushFront(&Node{key, val, time.Now().Unix(), ttl})
 	c.hashMap[key] = elem
 	if c.linkedList.Len() > c.capacity {
-		c.Delete(c.linkedList.Back().Value.(Node).Key)
+		c.Delete(c.linkedList.Back().Value.(*Node).Key)
 	}
-	return elem.Value.(Node)
+	return elem.Value.(*Node)
 }
 
 func (c *LRUCache) Delete(key string) {
@@ -55,7 +59,7 @@ func (c *LRUCache) Delete(key string) {
 	if !exists {
 		return
 	}
-	node := c.linkedList.Remove(elem).(Node)
+	node := c.linkedList.Remove(elem).(*Node)
 	delete(c.hashMap, node.Key)
 }
 
